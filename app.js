@@ -42,11 +42,14 @@ function status(t) { const el = $("status"); el.textContent = t || ""; el.hidden
 
 /* ---------- server ---------- */
 async function rpc(fn, body) {
+  // Nie länger als 8 Sekunden warten, sonst hängt die App bei schlechtem Empfang.
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
   const r = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + fn, {
-    method: "POST",
+    method: "POST", signal: ctl.signal,
     headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
+  clearTimeout(tm);
   const txt = await r.text();
   let j = null; try { j = txt ? JSON.parse(txt) : null; } catch (e) {}
   if (!r.ok) { const e = new Error((j && j.message) || ("HTTP " + r.status)); e.conflict = !!(j && j.message === "conflict"); throw e; }
@@ -68,7 +71,7 @@ async function load(quiet) {
     lastSync = new Date(); cacheLocal(); status(""); renderSync();
   } catch (e) {
     console.warn(e);
-    if (!quiet) status("Keine Verbindung. Ihr seht den zuletzt geladenen Stand. Änderungen sind erst wieder möglich, wenn das Internet da ist.");
+    status(navigator.onLine === false ? "Offline: Ihr seht den zuletzt geladenen Plan. Ändern geht wieder, sobald Internet da ist." : (quiet ? "" : "Keine Verbindung. Ihr seht den zuletzt geladenen Plan. Ändern geht wieder, sobald Internet da ist."));
   }
 }
 
@@ -89,7 +92,7 @@ async function mutate(fn, silent) {
         continue;
       }
       console.warn(e);
-      if (!silent) toast("Nicht gespeichert. Prüft die Internetverbindung und versucht es nochmal.");
+      if (!silent) toast(navigator.onLine === false ? "Offline: Ändern geht erst wieder mit Internet." : "Nicht gespeichert. Prüft die Internetverbindung und versucht es nochmal.");
       return false;
     }
   }
@@ -363,6 +366,8 @@ function start(c) {
   renderAll(); load();
   setInterval(() => { if (document.visibilityState === "visible" && $("scrim").hidden && $("rscrim").hidden) load(true); }, 20000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(true); });
+  window.addEventListener("online", () => load(true));
+  window.addEventListener("offline", () => status("Offline: Ihr seht den zuletzt geladenen Plan. Ändern geht wieder, sobald Internet da ist."));
 }
 $("newplan").onclick = () => start(newCode());
 $("joinplan").onclick = () => { const c = normCode($("joincode").value); if (!c) { toast("Der Code hat 20 Zeichen, z.B. ABCD-EFGH-…"); return; } start(c); };
@@ -374,5 +379,5 @@ $("joincode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinp
   const saved = normCode(ls("znacht.code"));
   const c = fromHash || saved;
   if (c) start(c); else $("setup").hidden = false;
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=3").catch(() => {});
 })();
