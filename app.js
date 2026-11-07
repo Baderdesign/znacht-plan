@@ -1,6 +1,8 @@
 // Znacht-Plan — gemeinsamer Wochenplan. Daten liegen als ein JSON-Dokument pro Haushalt in Supabase.
 const SUPABASE_URL = "https://qpmnraeacexzjnnlvqhw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_BvKAH1kJTAZJSiwyIXAeJQ_YJ6_KATy";
+const PUSH_ENABLED = false; // Mitteilungen später einschalten: auf true setzen (Supabase-Teil muss eingerichtet sein)
+const VAPID_PUBLIC = "BIjizNMnsQn1so3r04bW1-IB0HEgyZnZa_R6AKm6bwMgVowRgJGIWgIlKOvVnhM6SE77LpBBHLj-4ZQWRBPkNWA";
 
 const DAYS = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
 const SHORT = ["Mo","Di","Mi","Do","Fr","Sa","So"];
@@ -8,7 +10,9 @@ const $ = id => document.getElementById(id);
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 let code = null;
-let S = { meals: [], plan: {}, shop: {} };
+let S = { meals: [], plan: {}, shop: {} };   // was angezeigt wird = base + noch nicht übertragene Änderungen
+let base = { meals: [], plan: {}, shop: {} };   // zuletzt vom Server bestätigter Stand
+let queue = [];                                 // Änderungen, die noch übertragen werden müssen (überlebt Offline und Neustart)
 let version = 0;
 let lastSync = null;
 let busy = false;
@@ -56,50 +60,145 @@ async function rpc(fn, body) {
   return j;
 }
 function normalize(d) { d = d || {}; return { meals: Array.isArray(d.meals) ? d.meals : [], plan: d.plan && typeof d.plan === "object" ? d.plan : {}, shop: d.shop && typeof d.shop === "object" ? d.shop : {} }; }
-function cacheLocal() { ls("znacht.cache", JSON.stringify({ code, version, S })); }
+function clone(x) { return JSON.parse(JSON.stringify(x)); }
+function persist() { ls("znacht.cache", JSON.stringify({ code, version, base, queue })); }
+
+// Jede Änderung ist ein kleines Datenpaket. So kann sie offline gespeichert
+// und später auf den neuesten Stand vom Server nochmal angewendet werden.
+function applyOp(st, op) {
+  const P = w => (st.plan[w] = st.plan[w] || {});
+  const L = w => (st.shop[w] = st.shop[w] || []);
+  const sameName = n => st.meals.some(m => m.name.toLowerCase() === n.toLowerCase());
+  switch (op.t) {
+    case "seed": if (!st.meals.length) st.meals = op.meals; break;
+    case "day": {
+      const p = P(op.w); if (op.body) p[op.i] = op.body; else delete p[op.i];
+      if (op.newMeal && !sameName(op.newMeal.name)) st.meals.push(op.newMeal);
+      break;
+    }
+    case "swap": { const p = P(op.w), a = p[op.a], b = p[op.b]; if (b) p[op.a] = b; else delete p[op.a]; if (a) p[op.b] = a; else delete p[op.b]; break; }
+    case "fill": { const p = P(op.w); Object.entries(op.days).forEach(([i, body]) => { if (!(p[i] && p[i].meal)) p[i] = body; }); break; }
+    case "mealAdd": if (!sameName(op.meal.name)) st.meals.push(op.meal); break;
+    case "mealDel": st.meals = st.meals.filter(m => m.id !== op.id); break;
+    case "mealEdit": {
+      const x = st.meals.find(m => m.id === op.id); if (!x) break;
+      const old = x.name; Object.assign(x, op.data);
+      if (old !== x.name) Object.values(st.plan).forEach(wp => Object.values(wp).forEach(p => { if (p.meal === old) p.meal = x.name; }));
+      break;
+    }
+    case "shopAdd": { const l = L(op.w); op.items.forEach(it => { if (!l.some(y => y.id === it.id || y.text.toLowerCase() === it.text.toLowerCase())) l.push(it); }); break; }
+    case "shopToggle": { const it = L(op.w).find(y => y.id === op.id); if (it) it.done = op.done; break; }
+    case "shopDel": st.shop[op.w] = L(op.w).filter(y => y.id !== op.id); break;
+    case "shopClear": st.shop[op.w] = L(op.w).filter(y => !y.done); break;
+  }
+  return st;
+}
+function applyAll(b, q) { const st = clone(b); q.forEach(x => applyOp(st, x.op)); return st; }
 
 async function load(quiet) {
   if (!code) return;
   try {
     const res = await rpc("znacht_load", { p_code: code });
     if (res && typeof res.version === "number") {
-      if (res.version !== version) { S = normalize(res.data); version = res.version; renderAll(); }
-    } else if (version === 0 && !S.meals.length) {
+      if (res.version !== version) { base = normalize(res.data); version = res.version; S = applyAll(base, queue); persist(); renderAll(); }
+    } else if (version === 0 && !base.meals.length && !queue.some(x => x.op.t === "seed")) {
       // Neuer Haushalt: mit ein paar Ideen starten
-      await mutate(s => { s.meals = STARTER.map(m => ({ id: uid(), ...m })); }, true);
+      mutate({ t: "seed", meals: STARTER.map(m => ({ id: uid(), ...m })) });
     }
-    lastSync = new Date(); cacheLocal(); status(""); renderSync();
+    lastSync = new Date(); renderSync();
+    if (queue.length) await flush(); else status("");
   } catch (e) {
-    console.warn(e);
-    status(navigator.onLine === false ? "Offline: Ihr seht den zuletzt geladenen Plan. Ändern geht wieder, sobald Internet da ist." : (quiet ? "" : "Keine Verbindung. Ihr seht den zuletzt geladenen Plan. Ändern geht wieder, sobald Internet da ist."));
+    console.warn(e); showPending(true);
   }
 }
 
-// Änderung anwenden und speichern. Wenn der andere gleichzeitig gespeichert hat:
-// neuesten Stand holen, Änderung nochmal darauf anwenden, erneut speichern.
-async function mutate(fn, silent) {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const draft = JSON.parse(JSON.stringify(S));
-    fn(draft);
-    try {
-      const v = await rpc("znacht_save", { p_code: code, p_data: draft, p_version: version });
-      S = draft; version = v; lastSync = new Date(); cacheLocal(); renderAll(); renderSync(); status("");
-      return true;
-    } catch (e) {
-      if (e.conflict) {
-        const res = await rpc("znacht_load", { p_code: code }).catch(() => null);
-        if (res) { S = normalize(res.data); version = res.version; }
-        continue;
-      }
-      console.warn(e);
-      if (!silent) toast(navigator.onLine === false ? "Offline: Ändern geht erst wieder mit Internet." : "Nicht gespeichert. Prüft die Internetverbindung und versucht es nochmal.");
-      return false;
-    }
-  }
-  toast("Gerade speichert ihr beide gleichzeitig. Bitte nochmal tippen.");
-  renderAll();
-  return false;
+function showPending(offline) {
+  if (queue.length) status((offline || navigator.onLine === false ? "Offline. " : "") + (queue.length === 1 ? "1 Änderung ist auf dem Handy gespeichert und wird" : queue.length + " Änderungen sind auf dem Handy gespeichert und werden") + " übertragen, sobald Internet da ist.");
+  else if (offline || navigator.onLine === false) status("Offline. Ihr könnt trotzdem planen. Änderungen werden übertragen, sobald Internet da ist.");
+  else status("");
 }
+
+// Änderung sofort anzeigen und auf dem Gerät merken, dann übertragen.
+function mutate(op, desc) {
+  queue.push({ op, desc: desc || "" });
+  S = applyAll(base, queue); persist(); renderAll();
+  flush();
+  return true;
+}
+
+// Alle wartenden Änderungen übertragen. Hat der andere inzwischen gespeichert:
+// neuesten Stand holen, unsere Änderungen darauf anwenden, nochmal speichern.
+let flushing = false;
+async function flush() {
+  if (flushing || !code || !queue.length) { showPending(); return; }
+  flushing = true;
+  try {
+    for (let attempt = 0; attempt < 6 && queue.length; attempt++) {
+      const n = queue.length, draft = applyAll(base, queue.slice(0, n));
+      try {
+        const v = await rpc("znacht_save", { p_code: code, p_data: draft, p_version: version });
+        const sent = queue.splice(0, n);
+        base = draft; version = v; lastSync = new Date();
+        S = applyAll(base, queue); persist(); renderAll(); renderSync();
+        notifyOthers(sent.map(x => x.desc).filter(Boolean));
+        attempt = -1;
+      } catch (e) {
+        if (!e.conflict) throw e;
+        const res = await rpc("znacht_load", { p_code: code });
+        base = normalize(res && res.data); version = res ? res.version : 0;
+        S = applyAll(base, queue); persist(); renderAll();
+      }
+    }
+  } catch (e) { console.warn(e); flushing = false; showPending(true); return; }
+  flushing = false; showPending();
+}
+
+/* ---------- Push-Mitteilungen ---------- */
+function deviceId() { let d = ls("znacht.device"); if (!d) { d = uid(); ls("znacht.device", d); } return d; }
+let notifyBuf = [], notifyTimer = null;
+function notifyOthers(descs) {
+  if (!descs.length) return;
+  notifyBuf.push(...descs); clearTimeout(notifyTimer);
+  notifyTimer = setTimeout(sendNotify, 4000); // mehrere Änderungen kurz nacheinander = eine Mitteilung
+}
+function sendNotify() {
+  clearTimeout(notifyTimer); if (!PUSH_ENABLED) { notifyBuf = []; return; } if (!notifyBuf.length || !code) return;
+  const items = notifyBuf.splice(0), who = (ls("znacht.name") || "").trim();
+  const body = items.slice(0, 4).join(" · ") + (items.length > 4 ? " · und " + (items.length - 4) + " mehr" : "");
+  fetch(SUPABASE_URL + "/functions/v1/znacht-notify", {
+    method: "POST", keepalive: true,
+    headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ code, device: deviceId(), title: (who ? who + " hat" : "Jemand hat") + " den Plan geändert", body })
+  }).catch(() => {});
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") sendNotify(); });
+function b64u(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); const r = atob(s + "===".slice((s.length + 3) % 4)); return Uint8Array.from(r, c => c.charCodeAt(0)); }
+function pushState(t) { $("pushstate").textContent = t; }
+function renderPush() {
+  $("pushbox").hidden = !PUSH_ENABLED; if (!PUSH_ENABLED) return;
+  $("pushname").value = ls("znacht.name") || "";
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    const ios = /iPhone|iPad/.test(navigator.userAgent);
+    pushState(ios ? "Auf dem iPhone gehen Mitteilungen nur, wenn du die App vom Home-Bildschirm aus öffnest." : "Dieser Browser kann keine Mitteilungen anzeigen.");
+    $("pushon").disabled = true; return;
+  }
+  $("pushon").disabled = false;
+  if (Notification.permission === "denied") pushState("Mitteilungen sind in den Einstellungen des Handys blockiert.");
+  else if (ls("znacht.push") === "on" && Notification.permission === "granted") { pushState("Mitteilungen sind an."); $("pushon").textContent = "Name speichern"; }
+  else pushState("");
+}
+$("pushon").onclick = async () => {
+  const name = $("pushname").value.trim(); if (!name) { $("pushname").focus(); toast("Gib zuerst deinen Namen ein."); return; }
+  ls("znacht.name", name);
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { renderPush(); toast("Mitteilungen wurden nicht erlaubt."); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUBLIC) }));
+    await rpc("znacht_push_register", { p_code: code, p_device: deviceId(), p_sub: sub.toJSON() });
+    ls("znacht.push", "on"); renderPush(); toast("Mitteilungen sind an");
+  } catch (e) { console.warn(e); pushState("Hat nicht geklappt. Prüft das Internet und versucht es nochmal."); }
+};
 
 const STARTER = [
   { name: "Älplermagronen", url: "", ingredients: "Hörnli, Kartoffeln, Bergkäse, Rahm, Zwiebeln, Apfelmus", steps: "" },
@@ -170,10 +269,10 @@ function renderShop() {
   [...list].sort((a, b) => (a.done - b.done) || ((a.created || 0) - (b.created || 0))).forEach(s => {
     const li = document.createElement("li"); if (s.done) li.className = "done";
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "s-" + s.id; cb.checked = !!s.done;
-    cb.onchange = () => mutate(st => { const it = (st.shop[W()] || []).find(x => x.id === s.id); if (it) it.done = cb.checked; });
+    cb.onchange = () => mutate({ t: "shopToggle", w: W(), id: s.id, done: cb.checked });
     const t = document.createElement("label"); t.className = "t"; t.htmlFor = cb.id; t.textContent = s.text;
     const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.setAttribute("aria-label", s.text + " entfernen");
-    x.onclick = () => mutate(st => { st.shop[W()] = (st.shop[W()] || []).filter(y => y.id !== s.id); });
+    x.onclick = () => mutate({ t: "shopDel", w: W(), id: s.id });
     li.append(cb, t, x); ul.append(li);
   });
 }
@@ -200,12 +299,7 @@ function cancelSwap() { swapFrom = null; renderWeek(); }
 $("swapcancel").onclick = cancelSwap;
 async function swapDays(a, b) {
   swapFrom = null;
-  const ok = await mutate(st => {
-    const w = W(); const plan = st.plan[w] = st.plan[w] || {};
-    const pa = plan[a], pb = plan[b];
-    if (pb) plan[a] = pb; else delete plan[a];
-    if (pa) plan[b] = pa; else delete plan[b];
-  });
+  const ok = mutate({ t: "swap", w: W(), a, b }, DAYS[a] + " ⇄ " + DAYS[b]);
   renderWeek();
   if (ok) toast(DAYS[a] + " ⇄ " + DAYS[b] + " getauscht");
 }
@@ -254,19 +348,16 @@ $("sh-meal").addEventListener("input", drawSugg);
 function closeSheet() { $("scrim").hidden = true; editing = null; }
 $("sh-cancel").onclick = closeSheet;
 $("scrim").addEventListener("click", e => { if (e.target.id === "scrim") closeSheet(); });
-function setDay(st, i, body) { const w = W(); st.plan[w] = st.plan[w] || {}; if (body) st.plan[w][i] = body; else delete st.plan[w][i]; }
 $("sh-save").onclick = async () => {
   const i = editing, raw = $("sh-url").value.trim(), url = cleanUrl(raw);
   if (raw && !url) { toast("Der Link sieht nicht richtig aus. Er sollte mit https:// beginnen."); return; }
   const meal = $("sh-meal").value.trim(), note = $("sh-note").value.trim();
   closeSheet();
-  const ok = await mutate(st => {
-    setDay(st, i, meal || note ? { meal, note, url } : null);
-    if (meal && !st.meals.some(m => m.name.toLowerCase() === meal.toLowerCase())) st.meals.push({ id: uid(), name: meal, url, ingredients: "", steps: "" });
-  });
+  const ok = mutate({ t: "day", w: W(), i, body: meal || note ? { meal, note, url } : null, newMeal: meal ? { id: uid(), name: meal, url, ingredients: "", steps: "" } : null },
+    meal ? SHORT[i] + ": " + meal : DAYS[i] + " geändert");
   if (ok) toast(DAYS[i] + " gespeichert");
 };
-$("sh-clear").onclick = async () => { const i = editing; closeSheet(); if (await mutate(st => setDay(st, i, null))) toast(DAYS[i] + " geleert"); };
+$("sh-clear").onclick = async () => { const i = editing; closeSheet(); if (mutate({ t: "day", w: W(), i, body: null }, DAYS[i] + " geleert")) toast(DAYS[i] + " geleert"); };
 
 /* ---------- recipe sheet ---------- */
 let rId = null;
@@ -297,7 +388,7 @@ $("r-del").onclick = async () => {
   const d = $("r-del"), m = curMeal(); if (!m) return;
   if (!d.classList.contains("confirm")) { d.classList.add("confirm"); d.textContent = "Wirklich löschen?"; return; }
   const id = m.id, name = m.name; closeRecipe();
-  if (await mutate(st => { st.meals = st.meals.filter(x => x.id !== id); })) toast("«" + name + "» gelöscht");
+  if (mutate({ t: "mealDel", id }, "Gericht gelöscht: " + name)) toast("«" + name + "» gelöscht");
 };
 $("r-save").onclick = async () => {
   const m = curMeal(); if (!m) return;
@@ -305,11 +396,7 @@ $("r-save").onclick = async () => {
   if (S.meals.some(x => x.id !== m.id && x.name.toLowerCase() === name.toLowerCase())) { toast("Ein Gericht mit diesem Namen gibt's schon."); return; }
   const raw = $("r-url").value.trim(), url = cleanUrl(raw); if (raw && !url) { toast("Der Link sieht nicht richtig aus."); return; }
   const id = m.id, old = m.name, ingredients = $("r-ingin").value.trim(), steps = $("r-stepsin").value.trim();
-  const ok = await mutate(st => {
-    const x = st.meals.find(y => y.id === id); if (!x) return;
-    Object.assign(x, { name, url, ingredients, steps });
-    if (old !== name) Object.values(st.plan).forEach(wp => Object.values(wp).forEach(p => { if (p.meal === old) p.meal = name; }));
-  });
+  const ok = mutate({ t: "mealEdit", id, data: { name, url, ingredients, steps } }, "Rezept geändert: " + name);
   if (ok) { toast("Gespeichert"); showRecipeView(); }
 };
 $("r-plan").onclick = () => {
@@ -321,7 +408,7 @@ $("r-plan").onclick = () => {
     b.onclick = async () => {
       const m = curMeal(); if (!m) return; const name = m.name, url = m.url || "";
       closeRecipe();
-      if (await mutate(st => setDay(st, i, { meal: name, note: (p && p.note) || "", url }))) { toast(name + " am " + DAYS[i]); setTab("week"); }
+      if (mutate({ t: "day", w: W(), i, body: { meal: name, note: (p && p.note) || "", url } }, SHORT[i] + ": " + name)) { toast(name + " am " + DAYS[i]); setTab("week"); }
     };
     box.append(b);
   }
@@ -332,18 +419,16 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("rs
 /* ---------- other actions ---------- */
 $("dice").onclick = async () => {
   if (!S.meals.length) { toast("Erst ein paar Gerichte unter «Ideen» sammeln."); return; }
-  let filled = 0;
-  await mutate(st => {
-    filled = 0; const w = W(); st.plan[w] = st.plan[w] || {}; const plan = st.plan[w];
-    const used = new Set(Object.values(plan).map(p => p.meal));
-    let pool = st.meals.filter(m => !used.has(m.name));
-    for (let i = 0; i < 7; i++) {
-      if (plan[i] && plan[i].meal) continue;
-      if (!pool.length) pool = [...st.meals];
-      const m = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-      plan[i] = { meal: m.name, note: (plan[i] && plan[i].note) || "", url: m.url || "" }; filled++;
-    }
-  });
+  const plan = weekPlan(), used = new Set(Object.values(plan).map(p => p.meal)), days = {};
+  let pool = S.meals.filter(m => !used.has(m.name));
+  for (let i = 0; i < 7; i++) {
+    if (plan[i] && plan[i].meal) continue;
+    if (!pool.length) pool = [...S.meals];
+    const m = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    days[i] = { meal: m.name, note: (plan[i] && plan[i].note) || "", url: m.url || "" };
+  }
+  const filled = Object.keys(days).length;
+  if (filled) mutate({ t: "fill", w: W(), days }, "Woche aufgefüllt (" + filled + " Tage)");
   toast(filled ? filled + " Tage gefüllt. Passt was nicht? Einfach antippen." : "Alle Tage sind schon geplant.");
 };
 $("addmeal").onclick = async () => {
@@ -351,7 +436,7 @@ $("addmeal").onclick = async () => {
   const raw = $("mealurl").value.trim(), url = cleanUrl(raw); if (raw && !url) { toast("Der Link sieht nicht richtig aus."); return; }
   if (S.meals.some(m => m.name.toLowerCase() === name.toLowerCase())) { toast("Gibt's schon in der Liste."); return; }
   const ingredients = $("mealing").value.trim();
-  if (await mutate(st => st.meals.push({ id: uid(), name, url, ingredients, steps: "" }))) {
+  if (mutate({ t: "mealAdd", meal: { id: uid(), name, url, ingredients, steps: "" } }, "Neues Gericht: " + name)) {
     $("mealname").value = ""; $("mealurl").value = ""; $("mealing").value = ""; toast("«" + name + "» hinzugefügt");
   }
 };
@@ -359,23 +444,26 @@ $("mealname").addEventListener("keydown", e => { if (e.key === "Enter") $("mealu
 $("mealurl").addEventListener("keydown", e => { if (e.key === "Enter") $("mealing").focus(); });
 $("mealing").addEventListener("keydown", e => { if (e.key === "Enter") $("addmeal").click(); });
 
-function pushShop(st, text) { const w = W(); st.shop[w] = st.shop[w] || []; st.shop[w].push({ id: uid(), text, done: false, created: Date.now() }); }
-$("addshop").onclick = async () => { const t = $("shopin").value.trim(); if (!t) return; if (await mutate(st => pushShop(st, t))) $("shopin").value = ""; };
+function shopItem(text) { return { id: uid(), text, done: false, created: Date.now() }; }
+$("addshop").onclick = () => {
+  const t = $("shopin").value.trim(); if (!t) return;
+  if (weekShop().some(y => y.text.toLowerCase() === t.toLowerCase())) { toast("Steht schon auf der Liste."); return; }
+  if (mutate({ t: "shopAdd", w: W(), items: [shopItem(t)] }, "Einkauf: " + t)) $("shopin").value = "";
+};
 $("shopin").addEventListener("keydown", e => { if (e.key === "Enter") $("addshop").click(); });
 $("fromplan").onclick = async () => {
-  let n = 0;
-  await mutate(st => {
-    n = 0; const have = new Set((st.shop[W()] || []).map(s => s.text.toLowerCase()));
-    Object.values(st.plan[W()] || {}).forEach(p => {
-      const m = st.meals.find(x => x.name === p.meal);
-      if (m && m.ingredients) m.ingredients.split(",").map(s => s.trim()).filter(Boolean).forEach(z => { if (!have.has(z.toLowerCase())) { have.add(z.toLowerCase()); pushShop(st, z); n++; } });
-    });
+  const have = new Set(weekShop().map(s => s.text.toLowerCase())), items = [];
+  Object.values(weekPlan()).forEach(p => {
+    const m = mealByName(p.meal);
+    if (m && m.ingredients) m.ingredients.split(",").map(s => s.trim()).filter(Boolean).forEach(z => { if (!have.has(z.toLowerCase())) { have.add(z.toLowerCase()); items.push(shopItem(z)); } });
   });
+  const n = items.length;
+  if (n) mutate({ t: "shopAdd", w: W(), items }, n + " Zutaten auf der Einkaufsliste");
   toast(n ? n + " Zutaten dazu" : "Keine neuen Zutaten. Tragt bei den Gerichten Zutaten ein oder nutzt Bring mit dem Rezept-Link.");
 };
 $("cleardone").onclick = async () => {
   if (!weekShop().some(s => s.done)) { toast("Nichts abgehakt."); return; }
-  if (await mutate(st => { st.shop[W()] = (st.shop[W()] || []).filter(s => !s.done); })) toast("Erledigte entfernt");
+  if (mutate({ t: "shopClear", w: W() })) toast("Erledigte entfernt");
 };
 async function copyText(text, fb, okMsg) {
   try { await navigator.clipboard.writeText(text); fb.hidden = true; toast(okMsg); }
@@ -409,12 +497,19 @@ function start(c) {
   code = c; ls("znacht.code", c);
   if (location.hash.slice(1) !== c) history.replaceState(null, "", "#" + c); // Code bleibt im Link, damit «Zum Home-Bildschirm» ihn mitnimmt
   $("setup").hidden = true; $("app").hidden = false;
-  try { const cached = JSON.parse(ls("znacht.cache") || "null"); if (cached && cached.code === c) { S = normalize(cached.S); version = cached.version || 0; } } catch (e) {}
-  renderAll(); load();
+  try {
+    const cached = JSON.parse(ls("znacht.cache") || "null");
+    if (cached && cached.code === c) {
+      base = normalize(cached.base || cached.S); version = cached.version || 0;
+      queue = Array.isArray(cached.queue) ? cached.queue : [];
+    }
+  } catch (e) {}
+  S = applyAll(base, queue);
+  renderAll(); renderPush(); showPending(); load();
   setInterval(() => { if (document.visibilityState === "visible" && $("scrim").hidden && $("rscrim").hidden) load(true); }, 20000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(true); });
   window.addEventListener("online", () => load(true));
-  window.addEventListener("offline", () => status("Offline: Ihr seht den zuletzt geladenen Plan. Ändern geht wieder, sobald Internet da ist."));
+  window.addEventListener("offline", () => showPending(true));
 }
 $("newplan").onclick = () => start(newCode());
 $("joinplan").onclick = () => { const c = normCode($("joincode").value); if (!c) { toast("Der Code hat 20 Zeichen, z.B. ABCD-EFGH-…"); return; } start(c); };

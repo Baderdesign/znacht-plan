@@ -204,6 +204,12 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
       <div class="row"><button class="btn primary" id="shareinvite">Link teilen</button></div>
       <p class="note" style="margin:0">Euer Haushalts-Code. Wer ihn hat, kann den Plan sehen und ändern. Gebt ihn also nicht weiter.</p>
       <div class="code" id="codeshow"></div>
+      <div id="pushbox" hidden style="display:flex;flex-direction:column;gap:12px">
+      <h2 style="margin-top:6px">Mitteilungen</h2>
+      <p class="note" style="margin:0">Bekomm eine Mitteilung, wenn jemand anderes den Plan ändert. Jedes Handy schaltet das selbst ein.</p>
+      <div class="add"><input type="text" id="pushname" placeholder="Dein Name, z.B. David" maxlength="20" autocomplete="given-name"><button class="btn primary" id="pushon">Mitteilungen einschalten</button></div>
+      <p class="note" id="pushstate" style="margin:0"></p>
+      </div>
       <div class="row"><button class="btn ghost" id="leave">Dieses Handy abmelden</button></div>
     </details>
   </section>
@@ -297,6 +303,6 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
