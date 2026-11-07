@@ -643,5 +643,11 @@ $("joincode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinp
     // Neue Version installiert: einmal neu laden, damit alles zusammenpasst.
     let reloaded = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloaded || !$("scrim").hidden || !$("rscrim").hidden) return; reloaded = true; location.reload(); });
+    // Neue Version im Hintergrund geladen: neu laden, sobald gerade nichts offen ist.
+    navigator.serviceWorker.addEventListener("message", e => {
+      if (!e.data || e.data.type !== "update") return;
+      const tryReload = () => { if (reloaded) return; if ($("scrim").hidden && $("rscrim").hidden && !dragging && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { reloaded = true; location.reload(); } else setTimeout(tryReload, 3000); };
+      tryReload();
+    });
   }
 })();
