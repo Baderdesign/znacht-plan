@@ -1,6 +1,6 @@
 // Bader Znacht: App-Dateien liegen auf dem Gerät, damit die App sofort und auch offline startet.
 // Im Hintergrund wird jeweils die neueste Version geholt und beim nächsten Öffnen verwendet.
-const C = "bader-znacht-v3";
+const C = "bader-znacht-v4";
 const FILES = ["./", "index.html", "app.js", "manifest.webmanifest?v=2",
   "bader-icon-180.png", "bader-icon-192.png", "bader-icon-512.png"];
 

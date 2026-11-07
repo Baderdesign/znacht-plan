@@ -90,7 +90,15 @@ a{color:var(--basil);font-weight:700}
 .lnk{display:inline-flex;align-items:center;gap:4px;font-size:13px;text-decoration:none;border-radius:999px;padding:3px 10px;background:var(--basil-soft);color:var(--basil);white-space:nowrap}
 .lnk.br{background:var(--saffron-soft);color:var(--fg)}
 .links{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.dayrow{display:grid;grid-template-columns:1fr;border-top:1px solid var(--line)}
+.dayrow{display:grid;grid-template-columns:1fr auto;align-items:center;border-top:1px solid var(--line);transition:background .15s}
+.dayrow .links{grid-column:1/-1}
+.grip{width:44px;height:44px;margin-right:8px;border:1px solid var(--line);background:var(--bg);border-radius:12px;font-size:18px;line-height:1;color:var(--muted);touch-action:none;user-select:none;-webkit-user-select:none}
+.dayrow.pick{background:var(--plum-soft)}
+.dayrow.pick .grip{background:var(--plum);color:var(--paper);border-color:var(--plum)}
+.dayrow.target{background:var(--basil-soft);box-shadow:inset 4px 0 0 var(--basil)}
+.days.swapping .dayrow:not(.pick) .day .meal::after{content:"  ⇄ hierhin";color:var(--plum);font-weight:700;font-size:13px}
+.swapbar{display:flex;align-items:center;gap:10px;background:var(--plum-soft);color:var(--fg);border-radius:12px;padding:8px 8px 8px 12px;font-size:14px}
+.swapbar span{flex:1;min-width:0}
 .days li:first-child .dayrow{border-top:0}
 .dayrow .day{border-top:0}
 .dayrow .links{padding:0 14px 12px 78px;margin:0}
@@ -130,7 +138,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--basil);flex:none}
 .sugg button{border:0;background:var(--basil-soft);color:var(--basil);border-radius:999px;padding:6px 11px;font-size:14px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
-.chev{font-size:22px}
+.chev{display:none}
 .topline{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .sync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
 .sync .ib{width:34px;height:34px;font-size:16px}
@@ -182,7 +190,9 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
 
   <section id="v-week">
     <div class="fair" id="fair"></div>
+    <div class="swapbar" id="swapbar" hidden><span id="swaptext"></span><button class="btn sm" id="swapcancel">Abbrechen</button></div>
     <ul class="days" id="days"></ul>
+    <p class="note" style="margin:0">Tage tauschen: Tippe auf ⇅ beim einen Tag, dann auf den anderen. Oder halte ⇅ gedrückt und zieh den Tag an die neue Stelle.</p>
     <div class="row">
       <button class="btn" id="dice">🎲 Leere Tage aus Ideen füllen</button>
     </div>

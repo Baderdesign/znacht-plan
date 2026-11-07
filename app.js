@@ -129,7 +129,10 @@ function renderWeek() {
     const m = document.createElement("div"); m.className = "meal" + (p.meal ? "" : " empty"); m.textContent = p.meal || "+ Gericht wählen";
     if (p.note) { const n = document.createElement("span"); n.className = "n"; n.textContent = p.note; m.append(n); }
     const ch = document.createElement("span"); ch.className = "note chev"; ch.textContent = "›";
-    bt.append(dn, m, ch); bt.onclick = () => openSheet(i); li.append(bt);
+    bt.append(dn, m, ch); bt.onclick = () => { if (swapFrom !== null) { if (swapFrom !== i) swapDays(swapFrom, i); else cancelSwap(); } else openSheet(i); };
+    li.dataset.day = i; if (swapFrom === i) li.classList.add("pick");
+    const g = document.createElement("button"); g.className = "grip"; g.textContent = "⇅"; g.setAttribute("aria-label", DAYS[i] + " mit anderem Tag tauschen");
+    attachGrip(g, i); li.append(bt, g);
     if (p.meal) {
       const u = urlFor(p), mm = mealByName(p.meal);
       if (u || mm) {
@@ -140,6 +143,9 @@ function renderWeek() {
     }
     ul.append(li);
   }
+  ul.classList.toggle("swapping", swapFrom !== null);
+  $("swapbar").hidden = swapFrom === null;
+  if (swapFrom !== null) $("swaptext").textContent = DAYS[swapFrom] + ": Mit welchem Tag tauschen?";
   $("fair").textContent = planned + " von 7 Tagen geplant";
   renderBring();
 }
@@ -182,10 +188,51 @@ function renderInvite() {
   $("invitelink").value = code ? location.origin + location.pathname + "#" + code : "";
 }
 function renderAll() {
+  if (dragging) return;
   renderWeek(); renderMeals(); renderShop(); renderInvite();
   if (!$("rscrim").hidden && $("r-form").hidden) showRecipeView();
   if (!$("scrim").hidden) drawSugg();
 }
+
+/* ---------- Tage tauschen ---------- */
+let swapFrom = null, dragging = false;
+function cancelSwap() { swapFrom = null; renderWeek(); }
+$("swapcancel").onclick = cancelSwap;
+async function swapDays(a, b) {
+  swapFrom = null;
+  const ok = await mutate(st => {
+    const w = W(); const plan = st.plan[w] = st.plan[w] || {};
+    const pa = plan[a], pb = plan[b];
+    if (pb) plan[a] = pb; else delete plan[a];
+    if (pa) plan[b] = pa; else delete plan[b];
+  });
+  renderWeek();
+  if (ok) toast(DAYS[a] + " ⇄ " + DAYS[b] + " getauscht");
+}
+function rowAt(x, y) { const el = document.elementFromPoint(x, y); const r = el && el.closest(".dayrow"); return r ? +r.dataset.day : null; }
+function attachGrip(g, i) {
+  let sx = 0, sy = 0, moved = false, target = null, pid = null;
+  const mark = t => { document.querySelectorAll(".dayrow.target").forEach(r => r.classList.remove("target")); if (t !== null && t !== i) { const r = document.querySelector('.dayrow[data-day="' + t + '"]'); if (r) r.classList.add("target"); } };
+  g.addEventListener("pointerdown", e => { pid = e.pointerId; sx = e.clientX; sy = e.clientY; moved = false; target = null; try { g.setPointerCapture(pid); } catch (_) {} });
+  g.addEventListener("pointermove", e => {
+    if (pid !== e.pointerId) return;
+    if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) { moved = true; dragging = true; swapFrom = i; renderWeekKeepGrip(); }
+    if (moved) { e.preventDefault(); target = rowAt(e.clientX, e.clientY); mark(target); }
+  });
+  const end = e => {
+    if (pid !== e.pointerId) return; pid = null;
+    if (moved) { dragging = false; mark(null); if (target !== null && target !== i) swapDays(i, target); else cancelSwap(); }
+    else if (e.type === "pointerup") { swapFrom = swapFrom === i ? null : i; renderWeek(); }
+  };
+  g.addEventListener("pointerup", end); g.addEventListener("pointercancel", end);
+  g.addEventListener("click", e => e.preventDefault());
+}
+// Beim Ziehen nicht neu zeichnen (sonst verliert der Finger den Griff), nur markieren.
+function renderWeekKeepGrip() {
+  document.querySelectorAll(".dayrow").forEach(r => r.classList.toggle("pick", +r.dataset.day === swapFrom));
+  // Nichts einblenden, sonst verrutschen die Zeilen unter dem Finger.
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape" && swapFrom !== null) cancelSwap(); });
 
 /* ---------- day sheet ---------- */
 let editing = null;
@@ -353,8 +400,8 @@ $("leave").onclick = () => {
 /* ---------- tabs & weeks ---------- */
 function setTab(t) { ["week", "ideas", "shop"].forEach(k => { $("tab-" + k).setAttribute("aria-selected", String(k === t)); $("v-" + k).hidden = k !== t; }); window.scrollTo(0, 0); }
 ["week", "ideas", "shop"].forEach(k => $("tab-" + k).onclick = () => setTab(k));
-$("prev").onclick = () => { wk = addDays(wk, -7); renderAll(); };
-$("next").onclick = () => { wk = addDays(wk, 7); renderAll(); };
+$("prev").onclick = () => { swapFrom = null; wk = addDays(wk, -7); renderAll(); };
+$("next").onclick = () => { swapFrom = null; wk = addDays(wk, 7); renderAll(); };
 $("refresh").onclick = async () => { $("refresh").disabled = true; await load(); $("refresh").disabled = false; toast("Aktualisiert"); };
 
 /* ---------- setup & start ---------- */
@@ -379,5 +426,5 @@ $("joincode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinp
   const saved = normCode(ls("znacht.code"));
   const c = fromHash || saved;
   if (c) start(c); else $("setup").hidden = false;
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=3").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=4").catch(() => {});
 })();
