@@ -426,5 +426,10 @@ $("joincode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinp
   const saved = normCode(ls("znacht.code"));
   const c = fromHash || saved;
   if (c) start(c); else $("setup").hidden = false;
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=4").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(r => r.update()).catch(() => {});
+    // Neue Version installiert: einmal neu laden, damit alles zusammenpasst.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloaded || !$("scrim").hidden || !$("rscrim").hidden) return; reloaded = true; location.reload(); });
+  }
 })();
