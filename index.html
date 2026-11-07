@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Znacht-Plan</title>
+<meta name="theme-color" content="#2f6b3f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Znacht">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: one column "Wochenzettel" — week rows like a fridge note, tabs below the header, bottom sheet for editing */
+:root{
+  --bg:#f6f5ef; --paper:#fffffb; --fg:#1f2a22; --muted:#66705f; --line:#dfe0d3;
+  --basil:#2f6b3f; --basil-soft:#e3eedf; --saffron:#e7a22b; --saffron-soft:#fbefd4; --plum:#7a3f63; --plum-soft:#f2e4ec;
+  --danger:#b23a2b;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a16; --paper:#1c241e; --fg:#e8ece3; --muted:#9ba796; --line:#2f3a31;
+  --basil:#7fc48f; --basil-soft:#213627; --saffron:#f0b64c; --saffron-soft:#3a2f17; --plum:#d79ac0; --plum-soft:#3a2432;
+  --danger:#ef7a6a; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#141a16; --paper:#1c241e; --fg:#e8ece3; --muted:#9ba796; --line:#2f3a31;
+  --basil:#7fc48f; --basil-soft:#213627; --saffron:#f0b64c; --saffron-soft:#3a2f17; --plum:#d79ac0; --plum-soft:#3a2432;
+  --danger:#ef7a6a; color-scheme:dark }
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--basil-soft:#213627}}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:env(safe-area-inset-top,0px) calc(40px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{padding-top:20px;display:flex;flex-direction:column;gap:10px}
+h1{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1 span{color:var(--basil)}
+.weeknav{display:flex;align-items:center;gap:8px}
+.weeknav .lbl{flex:1;min-width:0;text-align:center;font-weight:700}
+.weeknav .lbl small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+button{font:inherit;color:inherit;cursor:pointer}
+.ib{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--paper);font-size:20px;line-height:1;flex:none}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--saffron);outline-offset:2px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px;
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5;box-shadow:0 -12px 0 var(--bg)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.tabs button{border:0;background:none;padding:9px 4px;border-radius:10px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--basil);color:var(--paper)}
+.note{font-size:14px;color:var(--muted)}
+.banner{background:var(--saffron-soft);border-radius:12px;padding:10px 12px;font-size:14px}
+
+/* fairness */
+.fair{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:14px}
+.fair b{font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;white-space:nowrap}
+.c0{background:var(--basil-soft);color:var(--basil)}
+.c1{background:var(--plum-soft);color:var(--plum)}
+.cout{background:var(--saffron-soft);color:var(--fg)}
+.cnone{border:1px dashed var(--line);color:var(--muted)}
+
+/* week list */
+.days{list-style:none;margin:0;padding:0;background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.day{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0}
+.days li:first-child .day{border-top:0}
+.day.today{background:var(--saffron-soft)}
+.dname{font-family:var(--f-display);font-weight:700;font-size:20px;line-height:1}
+.dname small{display:block;font-family:var(--f-body);font-weight:400;font-size:12px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+.meal{min-width:0;overflow-wrap:anywhere}
+.meal.empty{color:var(--muted)}
+.meal .n{font-size:13px;color:var(--muted);display:block}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:10px 14px;font-weight:700}
+.btn.primary{background:var(--basil);color:var(--paper);border-color:var(--basil)}
+.btn.ghost{background:none}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* lists */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.card h2{font-family:var(--f-display);font-size:18px;margin:0}
+.add{display:flex;gap:8px}
+a{color:var(--basil);font-weight:700}
+.lnk{display:inline-flex;align-items:center;gap:4px;font-size:13px;text-decoration:none;border-radius:999px;padding:3px 10px;background:var(--basil-soft);color:var(--basil);white-space:nowrap}
+.lnk.br{background:var(--saffron-soft);color:var(--fg)}
+.links{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.dayrow{display:grid;grid-template-columns:1fr;border-top:1px solid var(--line)}
+.days li:first-child .dayrow{border-top:0}
+.dayrow .day{border-top:0}
+.dayrow .links{padding:0 14px 12px 78px;margin:0}
+.dayrow.today{background:var(--saffron-soft)}
+.acts{display:flex;gap:6px;flex:none;align-self:center}
+.btn.sm{padding:7px 11px;font-size:14px;border-radius:10px}
+.pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.pre.empty{color:var(--muted)}
+.mealbtn{border:0;background:none;padding:0;text-align:left;font-weight:700;color:var(--fg);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.lnk.v{border:0;background:var(--plum-soft);color:var(--plum);font-weight:700}
+textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input[type=text],input[type=url],select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.list li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.list .t{flex:1;min-width:0;overflow-wrap:anywhere}
+.list .t small{display:block;color:var(--muted);font-size:13px}
+.list li.done .t{text-decoration:line-through;color:var(--muted)}
+.x{border:0;background:none;color:var(--muted);font-size:14px;padding:6px 8px;border-radius:8px}
+.x.confirm{color:var(--danger);font-weight:700}
+input[type=checkbox]{width:22px;height:22px;accent-color:var(--basil);flex:none}
+.empty-state{color:var(--muted);font-size:14px;padding:6px 0}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--paper);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;max-height:90%;overflow:auto}
+.sheet h3{font-family:var(--f-display);font-size:22px;margin:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label,.lab{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:7px 12px;font-size:14px;font-weight:700}
+.seg button[aria-pressed="true"].k0{background:var(--basil);color:var(--paper);border-color:var(--basil)}
+.seg button[aria-pressed="true"].k1{background:var(--plum);color:var(--paper);border-color:var(--plum)}
+.seg button[aria-pressed="true"].kout{background:var(--saffron);color:#1f2a22;border-color:var(--saffron)}
+.seg button[aria-pressed="true"].knone{background:var(--fg);color:var(--paper)}
+.sugg{display:flex;flex-wrap:wrap;gap:6px}
+.sugg button{border:0;background:var(--basil-soft);color:var(--basil);border-radius:999px;padding:6px 11px;font-size:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90%}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
+.chev{font-size:22px}
+.topline{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.sync .ib{width:34px;height:34px;font-size:16px}
+details.card summary{font-family:var(--f-display);font-weight:700;font-size:18px;cursor:pointer;list-style:none}
+details.card summary::after{content:" +";color:var(--muted)}
+details.card[open] summary::after{content:" –"}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:17px;letter-spacing:.04em;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;overflow-wrap:anywhere;user-select:all}
+.setup{padding-top:12vh;display:flex;flex-direction:column;gap:16px}
+.setup p{margin:0}
+.btn.confirm{color:var(--danger)}
+.wrap>[hidden]{display:none!important}
+section:not([hidden]){display:flex;flex-direction:column;gap:14px}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="setup" id="setup" hidden>
+    <h1>Unser <span>Znacht</span>-Plan</h1>
+    <p>Plant zusammen, was es diese Woche zum Znacht gibt. Einer startet den Plan, der andere tritt mit dem Link bei.</p>
+    <div class="card">
+      <h2>Neuer Plan</h2>
+      <p class="note">Erstellt euren gemeinsamen Plan. Danach schickst du den Link deiner Frau.</p>
+      <div class="row"><button class="btn primary" id="newplan">Plan starten</button></div>
+    </div>
+    <div class="card">
+      <h2>Ich habe einen Code</h2>
+      <div class="add"><input type="text" id="joincode" placeholder="ABCD-EFGH-…" autocomplete="off" autocapitalize="characters"><button class="btn" id="joinplan">Beitreten</button></div>
+    </div>
+  </div>
+  <div id="app" hidden style="display:contents">
+  <header>
+    <div class="topline">
+      <h1>Unser <span>Znacht</span>-Plan</h1>
+      <div class="sync"><span id="sync"></span><button class="ib" id="refresh" aria-label="Aktualisieren">↻</button></div>
+    </div>
+    <div class="weeknav">
+      <button class="ib" id="prev" aria-label="Vorherige Woche">‹</button>
+      <div class="lbl" id="weeklbl">KW –</div>
+      <button class="ib" id="next" aria-label="Nächste Woche">›</button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-week" aria-selected="true">Woche</button>
+    <button role="tab" id="tab-ideas" aria-selected="false">Ideen</button>
+    <button role="tab" id="tab-shop" aria-selected="false">Einkauf</button>
+  </nav>
+  <div id="status" class="banner" hidden></div>
+
+  <section id="v-week">
+    <div class="fair" id="fair"></div>
+    <ul class="days" id="days"></ul>
+    <div class="row">
+      <button class="btn" id="dice">🎲 Leere Tage aus Ideen füllen</button>
+    </div>
+    <details class="card">
+      <summary>Gemeinsam nutzen</summary>
+      <p class="note" style="margin:0">Schick diesen Link deiner Frau. Sie öffnet ihn in Safari oder Chrome und tippt dann «Zum Home-Bildschirm». Kein Konto nötig.</p>
+      <input type="text" id="invitelink" readonly aria-label="Einladungslink">
+      <div class="row"><button class="btn primary" id="shareinvite">Link teilen</button></div>
+      <p class="note" style="margin:0">Euer Haushalts-Code. Wer ihn hat, kann den Plan sehen und ändern. Gebt ihn also nicht weiter.</p>
+      <div class="code" id="codeshow"></div>
+      <div class="row"><button class="btn ghost" id="leave">Dieses Handy abmelden</button></div>
+    </details>
+  </section>
+
+  <section id="v-ideas" hidden>
+    <div class="card">
+      <h2>Unsere Gerichte</h2>
+      <p class="note" style="margin:0">Alles, was ihr gern esst. Beim Planen tippt ihr nur noch auf eins. Zutaten mit Komma trennen, dann landen sie mit einem Tipp auf der Einkaufsliste.</p>
+      <input type="text" id="mealname" placeholder="Gericht, z.B. Älplermagronen" maxlength="60">
+      <input type="url" id="mealurl" placeholder="Rezept-Link (optional), z.B. https://fooby.ch/…" maxlength="500" inputmode="url">
+      <input type="text" id="mealing" placeholder="Zutaten (optional), z.B. Hörnli, Kartoffeln, Käse" maxlength="300">
+      <div class="row"><button class="btn primary" id="addmeal">Gericht hinzufügen</button></div>
+      <ul class="list" id="meals"></ul>
+    </div>
+  </section>
+
+  <section id="v-shop" hidden>
+    <div class="card">
+      <h2 id="shoph">Einkaufsliste</h2>
+      <div class="add">
+        <input type="text" id="shopin" placeholder="z.B. Milch" maxlength="60">
+        <button class="btn primary" id="addshop">Dazu</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="fromplan">Zutaten aus dem Plan holen</button>
+        <button class="btn ghost" id="cleardone">Erledigte entfernen</button>
+      </div>
+      <ul class="list" id="shop"></ul>
+    </div>
+    <div class="card bring">
+      <h2>Ab in die Bring-App</h2>
+      <p class="note" style="margin:0">Rezepte mit Link: Tippen, dann öffnet Bring das Rezept und übernimmt die Zutaten. Das klappt bei Seiten wie Fooby, Betty Bossi oder Chefkoch, nicht bei jeder Seite.</p>
+      <ul class="list" id="bringrecipes"></ul>
+      <p class="note" style="margin:0">Eigene Liste: Kopieren, in Bring ins Eingabefeld einfügen. Jede Zeile wird ein Artikel.</p>
+      <div class="row"><button class="btn primary" id="copybring">Offene Artikel kopieren</button></div>
+      <textarea id="copyfallback" readonly hidden rows="5" aria-label="Liste zum Kopieren"></textarea>
+    </div>
+  </section>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-title">
+    <h3 id="sh-title">Montag</h3>
+    <div class="field">
+      <label for="sh-meal">Was gibt's?</label>
+      <input type="text" id="sh-meal" maxlength="80" placeholder="Gericht eingeben">
+      <div class="sugg" id="sh-sugg"></div>
+    </div>
+    <div class="field">
+      <label for="sh-url">Rezept-Link</label>
+      <input type="url" id="sh-url" maxlength="500" inputmode="url" placeholder="https://… (optional)">
+    </div>
+    <div class="field">
+      <label for="sh-note">Notiz</label>
+      <input type="text" id="sh-note" maxlength="80" placeholder="z.B. Gäste, Reste vom Vortag">
+    </div>
+    <div class="row">
+      <button class="btn primary" id="sh-save">Speichern</button>
+      <button class="btn ghost" id="sh-cancel">Abbrechen</button>
+      <button class="btn ghost danger" id="sh-clear">Tag leeren</button>
+    </div>
+  </div>
+</div>
+<div class="scrim" id="rscrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="r-title">
+    <div id="r-view">
+      <h3 id="r-title">Gericht</h3>
+      <div id="r-links"></div>
+      <div class="field"><span class="lab">Zutaten</span><div id="r-ing" class="pre"></div></div>
+      <div class="field"><span class="lab">Zubereitung &amp; Notizen</span><div id="r-steps" class="pre"></div></div>
+      <div class="row">
+        <button class="btn primary" id="r-edit">Bearbeiten</button>
+        <button class="btn" id="r-plan">Einem Tag zuweisen</button>
+        <button class="btn ghost" id="r-close">Schliessen</button>
+      </div>
+      <div class="seg" id="r-days" hidden></div>
+    </div>
+    <div id="r-form" hidden>
+      <h3>Gericht bearbeiten</h3>
+      <div class="field"><label for="r-name">Name</label><input type="text" id="r-name" maxlength="60"></div>
+      <div class="field"><label for="r-url">Rezept-Link</label><input type="url" id="r-url" maxlength="500" inputmode="url" placeholder="https://… (optional)"></div>
+      <div class="field"><label for="r-ingin">Zutaten (mit Komma trennen)</label><textarea id="r-ingin" rows="3" maxlength="600"></textarea></div>
+      <div class="field"><label for="r-stepsin">Zubereitung &amp; Notizen</label><textarea id="r-stepsin" rows="6" maxlength="4000" placeholder="z.B. Ofen 200 °C, 25 Min. Lieber etwas weniger Salz."></textarea></div>
+      <div class="row">
+        <button class="btn primary" id="r-save">Speichern</button>
+        <button class="btn ghost" id="r-cancel">Abbrechen</button>
+        <button class="btn ghost danger" id="r-del">Gericht löschen</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
