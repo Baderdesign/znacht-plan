@@ -58,9 +58,34 @@ function cleanUrl(u) { u = (u || "").trim(); if (!u) return ""; if (!/^https?:\/
 function host(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return "Rezept"; } }
 function bringLink(u) { return "https://api.getbring.com/rest/bringrecipes/deeplink?url=" + encodeURIComponent(u) + "&source=web"; }
 function linkEl(href, text, cls) { const a = document.createElement("a"); a.href = href; a.target = "_blank"; a.rel = "noopener"; a.className = "lnk" + (cls ? " " + cls : ""); a.textContent = text; return a; }
-function recipeLinks(u) { const w = document.createElement("div"); w.className = "links"; w.append(linkEl(u, "Rezept · " + host(u) + " ↗"), linkEl(bringLink(u), "Zutaten in Bring ↗", "br")); return w; }
+// Bring direkt öffnen statt über ein leeres Browserfenster (passiert in der Home-Bildschirm-App auf dem iPhone).
+// Bring liefert für ein Rezept einen App-Link. Klappt das nicht, normal über den Link wie bisher.
+document.addEventListener("click", async e => {
+  const a = e.target.closest && e.target.closest("a.lnk.br"); if (!a) return;
+  const recipe = a.dataset.recipe; if (!recipe) return;
+  e.preventDefault();
+  try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch("https://api.getbring.com/rest/bringrecipes/deeplink", {
+      method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: recipe, baseQuantity: 4, requestedQuantity: 4, source: "web" })
+    });
+    clearTimeout(tm);
+    const j = await r.json();
+    if (j && j.deeplink) { location.href = j.deeplink; return; }
+    throw new Error("kein Link");
+  } catch (_) { window.open(a.href, "_blank", "noopener"); }
+});
+function recipeLinks(u) { const w = document.createElement("div"); w.className = "links"; w.append(linkEl(u, "Rezept · " + host(u) + " ↗"), linkEl(bringLink(u), "Zutaten in Bring ↗", "br")); w.lastChild.dataset.recipe = u; return w; }
 function mealByName(n) { return S.meals.find(m => m.name === n); }
-function urlFor(p) { return p.url || (mealByName(p.meal) || {}).url || ""; }
+// Rezept-Link eines Tages: Der Link vom Gericht unter «Ideen» gilt immer.
+// Ein Link, der eigentlich zu einem anderen Gericht gehört (alter Rest nach einem Wechsel), wird ignoriert.
+function urlFor(p) {
+  const m = mealByName(p.meal);
+  if (m && m.url) return m.url;
+  if (p.url && S.meals.some(x => x.url === p.url && x.name !== p.meal)) return "";
+  return p.url || "";
+}
 function weekPlan() { return S.plan[W()] || {}; }
 function weekShop() { return S.shop[W()] || []; }
 
@@ -427,7 +452,12 @@ function drawSugg() {
   });
   const sel = box.querySelector(".sel"); if (sel) sel.scrollIntoView({ block: "nearest" });
 }
-$("sh-meal").addEventListener("input", drawSugg);
+$("sh-meal").addEventListener("input", () => {
+  // Gericht geändert: Link vom vorherigen Gericht nicht mitnehmen
+  const u = $("sh-url").value.trim(), name = $("sh-meal").value.trim().toLowerCase();
+  if (u && S.meals.some(x => x.url === u && x.name.toLowerCase() !== name)) $("sh-url").value = "";
+  drawSugg();
+});
 function closeSheet() { $("scrim").hidden = true; editing = null; }
 $("sh-cancel").onclick = closeSheet;
 $("scrim").addEventListener("click", e => { if (e.target.id === "scrim") closeSheet(); });
