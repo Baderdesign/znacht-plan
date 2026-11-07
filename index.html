@@ -78,6 +78,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .row.end{justify-content:flex-end}
 .btn{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:10px 14px;font-weight:700}
+a.btn{display:inline-block;text-decoration:none;text-align:center}
 .btn.primary{background:var(--basil);color:var(--paper);border-color:var(--basil)}
 .btn.ghost{background:none}
 .btn.danger{color:var(--danger)}
@@ -136,6 +137,18 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--basil);flex:none}
 .seg button[aria-pressed="true"].kout{background:var(--saffron);color:#1f2a22;border-color:var(--saffron)}
 .seg button[aria-pressed="true"].knone{background:var(--fg);color:var(--paper)}
 .searchhead{display:flex;align-items:center;gap:10px}
+.filters{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.filters::-webkit-scrollbar{display:none}
+.filters button,.tagpick button{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:700;white-space:nowrap}
+.filters button[aria-pressed="true"]{background:var(--basil);border-color:var(--basil);color:var(--paper)}
+.tagpick{display:flex;flex-wrap:wrap;gap:6px}
+.tagpick button[aria-pressed="true"]{background:var(--basil-soft);border-color:var(--basil);color:var(--basil)}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tag{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--saffron-soft);color:var(--fg)}
+.aisle{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:14px 0 4px;border-top:0!important;display:flex;align-items:center;gap:8px}
+.list li.aisle:first-child{padding-top:2px}
+.aislewrap{position:relative;flex:none;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-size:15px}
+.aislewrap select{position:absolute;inset:0;opacity:0;width:100%;height:100%;font-size:16px;cursor:pointer}
 .searchhead .note{flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
 input[type=search]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0;-webkit-appearance:none;appearance:none}
 .scrollbox{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
@@ -153,7 +166,13 @@ input[type=search]{font:inherit;color:var(--fg);background:var(--bg);border:1px 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
 .chev{display:none}
-.topline{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.topline{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.topline h1{text-align:center;white-space:nowrap}
+.topline .sync{justify-self:end}
+.logo{width:68px;height:68px;border-radius:16px;display:block;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.logo.big{width:96px;height:96px;border-radius:22px}
+.sync{flex-direction:column;align-items:flex-end;gap:2px}
+.sync #sync{font-size:11px}
 .sync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
 .sync .ib{width:34px;height:34px;font-size:16px}
 details.card summary{font-family:var(--f-display);font-weight:700;font-size:18px;cursor:pointer;list-style:none}
@@ -171,7 +190,8 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
 <body>
 <div class="wrap">
   <div class="setup" id="setup" hidden>
-    <h1>Unser <span>Znacht</span>-Plan</h1>
+    <img class="logo big" src="bader-icon-180.png" alt="Bader Znacht" width="96" height="96">
+    <h1><span>Znacht</span>-Plan</h1>
     <p>Plant zusammen, was es diese Woche zum Znacht gibt. Einer startet den Plan, der andere tritt mit dem Link bei.</p>
     <div class="card">
       <h2>Neuer Plan</h2>
@@ -186,7 +206,8 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   <div id="app" hidden style="display:contents">
   <header>
     <div class="topline">
-      <h1>Unser <span>Znacht</span>-Plan</h1>
+      <img class="logo" src="bader-icon-180.png" alt="Bader Znacht" width="68" height="68">
+      <h1><span>Znacht</span>-Plan</h1>
       <div class="sync"><span id="sync"></span><button class="ib" id="refresh" aria-label="Aktualisieren">↻</button></div>
     </div>
     <div class="weeknav">
@@ -234,7 +255,9 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
       <input type="text" id="mealname" placeholder="Gericht, z.B. Älplermagronen" maxlength="60">
       <input type="url" id="mealurl" placeholder="Rezept-Link (optional), z.B. https://fooby.ch/…" maxlength="500" inputmode="url">
       <input type="text" id="mealing" placeholder="Zutaten (optional), z.B. Hörnli, Kartoffeln, Käse" maxlength="300">
+      <div class="tagpick" id="mealtags" aria-label="Kategorien"></div>
       <div class="row end"><button class="btn primary" id="addmeal">Gericht hinzufügen</button></div>
+      <div class="filters" id="mealfilter" aria-label="Nach Kategorie filtern"></div>
       <div class="searchhead"><input type="search" id="mealsearch" placeholder="Suchen: Name oder Zutat" autocomplete="off"><span class="note" id="mealcount"></span></div>
       <div class="scrollbox" id="mealbox"><ul class="list" id="meals"></ul></div>
     </div>
@@ -257,7 +280,7 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
       <h2>Ab in die Bring-App</h2>
       <p class="note" style="margin:0">Rezepte mit Link: Tippen, dann öffnet Bring das Rezept und übernimmt die Zutaten. Das klappt bei Seiten wie Fooby, Betty Bossi oder Chefkoch, nicht bei jeder Seite.</p>
       <ul class="list" id="bringrecipes"></ul>
-      <p class="note" style="margin:0">Eigene Liste: Kopieren, in Bring ins Eingabefeld einfügen. Jede Zeile wird ein Artikel.</p>
+      <p class="note" style="margin:0">Einkaufsliste: Kopieren, in Bring ins Eingabefeld einfügen. Die Artikel kommen nach Abteilungen sortiert.</p>
       <div class="row"><button class="btn primary" id="copybring">Offene Artikel kopieren</button></div>
       <textarea id="copyfallback" readonly hidden rows="5" aria-label="Liste zum Kopieren"></textarea>
     </div>
@@ -271,6 +294,7 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
     <div class="field">
       <label for="sh-meal">Was gibt's?</label>
       <input type="text" id="sh-meal" maxlength="80" placeholder="Suchen oder neues Gericht eingeben" autocomplete="off">
+      <div class="filters" id="shfilter" aria-label="Nach Kategorie filtern"></div>
       <div class="scrollbox short"><ul class="picklist" id="sh-sugg"></ul></div>
     </div>
     <div class="field">
@@ -293,6 +317,7 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
     <div id="r-view">
       <h3 id="r-title">Gericht</h3>
       <div id="r-links"></div>
+      <div class="tags" id="r-tagshow"></div>
       <div class="field"><span class="lab">Zutaten</span><div id="r-ing" class="pre"></div></div>
       <div class="field"><span class="lab">Zubereitung &amp; Notizen</span><div id="r-steps" class="pre"></div></div>
       <div class="row">
@@ -306,6 +331,7 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
       <h3>Gericht bearbeiten</h3>
       <div class="field"><label for="r-name">Name</label><input type="text" id="r-name" maxlength="60"></div>
       <div class="field"><label for="r-url">Rezept-Link</label><input type="url" id="r-url" maxlength="500" inputmode="url" placeholder="https://… (optional)"></div>
+      <div class="field"><span class="lab">Kategorien</span><div class="tagpick" id="r-tags"></div></div>
       <div class="field"><label for="r-ingin">Zutaten (mit Komma trennen)</label><textarea id="r-ingin" rows="3" maxlength="600"></textarea></div>
       <div class="field"><label for="r-stepsin">Zubereitung &amp; Notizen</label><textarea id="r-stepsin" rows="6" maxlength="4000" placeholder="z.B. Ofen 200 °C, 25 Min. Lieber etwas weniger Salz."></textarea></div>
       <div class="row">
@@ -317,6 +343,6 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

@@ -17,6 +17,29 @@ let version = 0;
 let lastSync = null;
 let busy = false;
 
+/* ---------- Kategorien & Abteilungen ---------- */
+const TAGS = ["Vegi", "Fleisch", "Fisch", "Schnell", "Ofen", "Gäste"];
+// Reihenfolge wie beim Gang durch einen typischen Laden
+const AISLES = [
+  ["Gemüse & Früchte", "salat rüebli karotte zwiebel knoblauch tomate kartoffel gschwellti peperoni zucchetti zucchini aubergine gurke lauch kürbis pastinake rosenkohl broccoli brokkoli blumenkohl spinat sellerie fenchel kohl champignon pilz apfel äpfel birne banane zitrone limette orange beeren ingwer kräuter petersilie basilikum schnittlauch koriander avocado mais erbsen randen radiesli"],
+  ["Brot & Backwaren", "brot zopf gipfeli toast brötchen weggli tortilla wrap fladenbrot pita"],
+  ["Fleisch & Fisch", "fleisch hack poulet huhn hähnchen chicken rind kalb schwein speck schinken wurst cervelat salami lachs fisch thon thunfisch crevetten geschnetzelt hackfleisch"],
+  ["Milch, Käse & Eier", "milch rahm butter käse mozzarella parmesan gruyère emmentaler bergkäse raclette joghurt jogurt quark mascarpone ricotta feta ei eier crème fraiche sauerrahm halbrahm"],
+  ["Teigwaren, Reis & Vorrat", "hörnli spaghetti penne nudel teigwaren pasta lasagne spätzli reis risotto couscous bulgur quinoa linsen bohnen kichererbsen mehl zucker hefe griess haferflocken teig kuchenteig blätterteig dose konserve passata tomatensauce kokosmilch"],
+  ["Gewürze, Saucen & Öl", "salz pfeffer öl essig senf ketchup mayo bouillon brühe curry paprika zimt muskat sojasauce honig gewürz paste sauce"],
+  ["Tiefkühl", "tiefkühl tk glace fischstäbli pommes"],
+  ["Getränke", "wasser saft wein bier cola kaffee tee"],
+  ["Haushalt", "abwaschmittel waschmittel toilettenpapier papier haushaltpapier alufolie backpapier schwamm"],
+  ["Sonstiges", ""]
+];
+function guessAisle(text) {
+  const t = (text || "").toLowerCase();
+  for (const [name, words] of AISLES) if (words && words.split(" ").some(w => w && t.includes(w))) return name;
+  return "Sonstiges";
+}
+function aisleOf(item) { return item.aisle || guessAisle(item.text); }
+function aisleIndex(name) { const i = AISLES.findIndex(a => a[0] === name); return i < 0 ? AISLES.length : i; }
+
 /* ---------- small helpers ---------- */
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
@@ -89,6 +112,7 @@ function applyOp(st, op) {
     case "shopAdd": { const l = L(op.w); op.items.forEach(it => { if (!l.some(y => y.id === it.id || y.text.toLowerCase() === it.text.toLowerCase())) l.push(it); }); break; }
     case "shopToggle": { const it = L(op.w).find(y => y.id === op.id); if (it) it.done = op.done; break; }
     case "shopDel": st.shop[op.w] = L(op.w).filter(y => y.id !== op.id); break;
+    case "shopAisle": { const it = L(op.w).find(y => y.id === op.id); if (it) it.aisle = op.aisle; break; }
     case "shopClear": st.shop[op.w] = L(op.w).filter(y => !y.done); break;
   }
   return st;
@@ -248,19 +272,42 @@ function renderWeek() {
   $("fair").textContent = planned + " von 7 Tagen geplant";
   renderBring();
 }
+let ideasFilter = "", dayFilter = "", addTags = [], editTags = [];
+function drawFilters(boxId, current, set) {
+  const box = $(boxId); box.textContent = "";
+  ["", ...TAGS].forEach(t => {
+    const b = document.createElement("button"); b.textContent = t || "Alle";
+    b.setAttribute("aria-pressed", String(current === t)); b.onclick = () => set(t);
+    box.append(b);
+  });
+}
+function drawTagPick(boxId, arr) {
+  const box = $(boxId); box.textContent = "";
+  TAGS.forEach(t => {
+    const b = document.createElement("button"); b.textContent = t; b.type = "button";
+    b.setAttribute("aria-pressed", String(arr.includes(t)));
+    b.onclick = () => { const i = arr.indexOf(t); if (i < 0) arr.push(t); else arr.splice(i, 1); drawTagPick(boxId, arr); };
+    box.append(b);
+  });
+}
+function tagsEl(m) { const w = document.createElement("div"); w.className = "tags"; (m.tags || []).forEach(t => { const s = document.createElement("span"); s.className = "tag"; s.textContent = t; w.append(s); }); return w; }
+function hasTag(m, t) { return !t || (m.tags || []).includes(t); }
 function renderMeals() {
   const ul = $("meals"); ul.textContent = "";
   const q = $("mealsearch").value.trim().toLowerCase();
-  const list = S.meals.filter(m => !q || m.name.toLowerCase().includes(q) || (m.ingredients || "").toLowerCase().includes(q));
-  $("mealcount").textContent = q ? list.length + " von " + S.meals.length : S.meals.length + " Gerichte";
+  drawFilters("mealfilter", ideasFilter, t => { ideasFilter = t; renderMeals(); });
+  drawTagPick("mealtags", addTags);
+  const list = S.meals.filter(m => hasTag(m, ideasFilter) && (!q || m.name.toLowerCase().includes(q) || (m.ingredients || "").toLowerCase().includes(q)));
+  $("mealcount").textContent = (q || ideasFilter) ? list.length + " von " + S.meals.length : S.meals.length + " Gerichte";
   if (!S.meals.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = "Noch keine Gerichte. Fügt oben euer erstes hinzu."; ul.append(e); return; }
-  if (!list.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = "Nichts gefunden für «" + $("mealsearch").value.trim() + "»."; ul.append(e); return; }
+  if (!list.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = q ? "Nichts gefunden für «" + $("mealsearch").value.trim() + "»." : "Noch kein Gericht mit «" + ideasFilter + "». Unter «Ändern» könnt ihr Kategorien setzen."; ul.append(e); fitMealBox(); return; }
   list.sort((a, b) => a.name.localeCompare(b.name, "de")).forEach(m => {
     const li = document.createElement("li");
     const t = document.createElement("div"); t.className = "t";
     const nb = document.createElement("button"); nb.className = "mealbtn"; nb.textContent = m.name; nb.onclick = () => openRecipe(m.id); t.append(nb);
     if (m.ingredients) { const s = document.createElement("small"); s.textContent = m.ingredients; t.append(s); }
     if (m.url) { const s = document.createElement("small"); s.textContent = "Rezept: " + host(m.url); t.append(s); }
+    if ((m.tags || []).length) t.append(tagsEl(m));
     const acts = document.createElement("div"); acts.className = "acts";
     const vb = document.createElement("button"); vb.className = "btn sm"; vb.textContent = "Ansehen"; vb.onclick = () => openRecipe(m.id);
     const eb = document.createElement("button"); eb.className = "btn sm primary"; eb.textContent = "Ändern"; eb.onclick = () => { rId = m.id; $("rscrim").hidden = false; startEdit(); };
@@ -280,15 +327,28 @@ window.addEventListener("resize", fitMealBox);
 function renderShop() {
   const ul = $("shop"); ul.textContent = ""; const list = weekShop();
   if (!list.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = "Leer. Tippt auf «Zutaten aus dem Plan holen» oder schreibt selbst etwas."; ul.append(e); return; }
-  [...list].sort((a, b) => (a.done - b.done) || ((a.created || 0) - (b.created || 0))).forEach(s => {
-    const li = document.createElement("li"); if (s.done) li.className = "done";
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "s-" + s.id; cb.checked = !!s.done;
-    cb.onchange = () => mutate({ t: "shopToggle", w: W(), id: s.id, done: cb.checked });
-    const t = document.createElement("label"); t.className = "t"; t.htmlFor = cb.id; t.textContent = s.text;
-    const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.setAttribute("aria-label", s.text + " entfernen");
-    x.onclick = () => mutate({ t: "shopDel", w: W(), id: s.id });
-    li.append(cb, t, x); ul.append(li);
+  const open = list.filter(s => !s.done), done = list.filter(s => s.done);
+  const groups = {};
+  open.forEach(s => { (groups[aisleOf(s)] = groups[aisleOf(s)] || []).push(s); });
+  Object.keys(groups).sort((a, b) => aisleIndex(a) - aisleIndex(b)).forEach(g => {
+    const h = document.createElement("li"); h.className = "aisle"; h.textContent = g; ul.append(h);
+    groups[g].sort((a, b) => (a.created || 0) - (b.created || 0)).forEach(s => ul.append(shopRow(s)));
   });
+  if (done.length) { const h = document.createElement("li"); h.className = "aisle"; h.textContent = "Erledigt"; ul.append(h); done.forEach(s => ul.append(shopRow(s))); }
+}
+function shopRow(s) {
+  const li = document.createElement("li"); if (s.done) li.className = "done";
+  const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "s-" + s.id; cb.checked = !!s.done;
+  cb.onchange = () => mutate({ t: "shopToggle", w: W(), id: s.id, done: cb.checked });
+  const t = document.createElement("label"); t.className = "t"; t.htmlFor = cb.id; t.textContent = s.text;
+  const sel = document.createElement("select"); sel.className = "aislesel"; sel.setAttribute("aria-label", "Abteilung für " + s.text);
+  AISLES.forEach(([n]) => { const o = document.createElement("option"); o.value = n; o.textContent = n; sel.append(o); });
+  sel.value = aisleOf(s); sel.onchange = () => mutate({ t: "shopAisle", w: W(), id: s.id, aisle: sel.value });
+  const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.setAttribute("aria-label", s.text + " entfernen");
+  x.onclick = () => mutate({ t: "shopDel", w: W(), id: s.id });
+  const sw = document.createElement("span"); sw.className = "aislewrap"; sw.title = "Abteilung ändern"; sw.textContent = "⇵"; sw.append(sel);
+  li.append(cb, t); if (!s.done) li.append(sw); li.append(x);
+  return li;
 }
 function renderBring() {
   const ul = $("bringrecipes"); ul.textContent = ""; const plan = weekPlan(); const rows = [];
@@ -345,7 +405,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && swapFrom !
 /* ---------- day sheet ---------- */
 let editing = null;
 function openSheet(i) {
-  editing = i; const p = weekPlan()[i] || {};
+  editing = i; dayFilter = ""; const p = weekPlan()[i] || {};
   $("sh-title").textContent = DAYS[i] + ", " + fmt(addDays(wk, i));
   $("sh-meal").value = p.meal || ""; $("sh-note").value = p.note || ""; $("sh-url").value = p.url || "";
   drawSugg(); $("scrim").hidden = false; $("sh-sugg").parentElement.scrollTop = 0; const sel = $("sh-sugg").querySelector(".sel"); if (sel) sel.scrollIntoView({ block: "nearest" });
@@ -354,9 +414,10 @@ function drawSugg() {
   const val = $("sh-meal").value.trim(), q = val.toLowerCase(), box = $("sh-sugg"); box.textContent = "";
   const exact = S.meals.find(m => m.name.toLowerCase() === q);
   // Passt der Text genau zu einem Gericht, alle zeigen (zum Wechseln); sonst filtern.
-  const list = S.meals.filter(m => !q || exact || m.name.toLowerCase().includes(q) || (m.ingredients || "").toLowerCase().includes(q))
+  drawFilters("shfilter", dayFilter, t => { dayFilter = t; drawSugg(); });
+  const list = S.meals.filter(m => (exact && exact.id === m.id) || (hasTag(m, dayFilter) && (!q || exact || m.name.toLowerCase().includes(q) || (m.ingredients || "").toLowerCase().includes(q))))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
-  if (!list.length) { const e = document.createElement("li"); e.className = "empty-state note"; e.textContent = "Kein Gericht gefunden. Mit «Speichern» wird «" + val + "» als neues Gericht angelegt."; box.append(e); return; }
+  if (!list.length) { const e = document.createElement("li"); e.className = "empty-state note"; e.textContent = val ? "Kein Gericht gefunden. Mit «Speichern» wird «" + val + "» als neues Gericht angelegt." : "Keine Gerichte mit «" + dayFilter + "»."; box.append(e); return; }
   list.forEach(m => {
     const li = document.createElement("li"), b = document.createElement("button");
     b.textContent = m.name; if (exact && exact.id === m.id) b.className = "sel";
@@ -390,6 +451,7 @@ function showRecipeView() {
   $("r-form").hidden = true; $("r-view").hidden = false; $("r-days").hidden = true;
   $("r-title").textContent = m.name;
   const L = $("r-links"); L.textContent = ""; if (m.url) L.append(recipeLinks(m.url));
+  const T = $("r-tagshow"); T.replaceWith(Object.assign(tagsEl(m), { id: "r-tagshow" }));
   const ing = $("r-ing"), st = $("r-steps");
   const items = (m.ingredients || "").split(",").map(s => s.trim()).filter(Boolean);
   ing.textContent = items.length ? items.map(s => "• " + s).join("\n") : "Noch keine Zutaten eingetragen."; ing.className = "pre" + (items.length ? "" : " empty");
@@ -401,6 +463,7 @@ $("rscrim").addEventListener("click", e => { if (e.target.id === "rscrim") close
 $("r-edit").onclick = () => startEdit();
 function startEdit() {
   const m = curMeal(); if (!m) return;
+  editTags = [...(m.tags || [])]; drawTagPick("r-tags", editTags);
   $("r-name").value = m.name; $("r-url").value = m.url || ""; $("r-ingin").value = m.ingredients || ""; $("r-stepsin").value = m.steps || "";
   $("r-view").hidden = true; $("r-form").hidden = false;
   const d = $("r-del"); d.classList.remove("confirm"); d.textContent = "Gericht löschen";
@@ -418,7 +481,7 @@ $("r-save").onclick = async () => {
   if (S.meals.some(x => x.id !== m.id && x.name.toLowerCase() === name.toLowerCase())) { toast("Ein Gericht mit diesem Namen gibt's schon."); return; }
   const raw = $("r-url").value.trim(), url = cleanUrl(raw); if (raw && !url) { toast("Der Link sieht nicht richtig aus."); return; }
   const id = m.id, old = m.name, ingredients = $("r-ingin").value.trim(), steps = $("r-stepsin").value.trim();
-  const ok = mutate({ t: "mealEdit", id, data: { name, url, ingredients, steps } }, "Rezept geändert: " + name);
+  const ok = mutate({ t: "mealEdit", id, data: { name, url, ingredients, steps, tags: [...editTags] } }, "Rezept geändert: " + name);
   if (ok) { toast("Gespeichert"); showRecipeView(); }
 };
 $("r-plan").onclick = () => {
@@ -458,8 +521,8 @@ $("addmeal").onclick = async () => {
   const raw = $("mealurl").value.trim(), url = cleanUrl(raw); if (raw && !url) { toast("Der Link sieht nicht richtig aus."); return; }
   if (S.meals.some(m => m.name.toLowerCase() === name.toLowerCase())) { toast("Gibt's schon in der Liste."); return; }
   const ingredients = $("mealing").value.trim();
-  if (mutate({ t: "mealAdd", meal: { id: uid(), name, url, ingredients, steps: "" } }, "Neues Gericht: " + name)) {
-    $("mealname").value = ""; $("mealurl").value = ""; $("mealing").value = ""; toast("«" + name + "» hinzugefügt");
+  if (mutate({ t: "mealAdd", meal: { id: uid(), name, url, ingredients, steps: "", tags: [...addTags] } }, "Neues Gericht: " + name)) {
+    addTags = []; $("mealname").value = ""; $("mealurl").value = ""; $("mealing").value = ""; toast("«" + name + "» hinzugefügt");
   }
 };
 $("mealsearch").addEventListener("input", renderMeals);
@@ -493,7 +556,7 @@ async function copyText(text, fb, okMsg) {
   catch (e) { fb.value = text; fb.hidden = false; fb.focus(); fb.select(); toast("Text markiert. Jetzt kopieren."); }
 }
 $("copybring").onclick = () => {
-  const text = weekShop().filter(s => !s.done).map(s => s.text).join("\n");
+  const text = weekShop().filter(s => !s.done).sort((a, b) => aisleIndex(aisleOf(a)) - aisleIndex(aisleOf(b))).map(s => s.text).join("\n");
   if (!text) { toast("Keine offenen Artikel."); return; }
   copyText(text, $("copyfallback"), "Kopiert. Jetzt in Bring einfügen.");
 };
