@@ -76,6 +76,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .meal.empty{color:var(--muted)}
 .meal .n{font-size:13px;color:var(--muted);display:block}
 .row{display:flex;gap:8px;flex-wrap:wrap}
+.row.end{justify-content:flex-end}
 .btn{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:10px 14px;font-weight:700}
 .btn.primary{background:var(--basil);color:var(--paper);border-color:var(--basil)}
 .btn.ghost{background:none}
@@ -214,7 +215,7 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
       <input type="text" id="mealname" placeholder="Gericht, z.B. Älplermagronen" maxlength="60">
       <input type="url" id="mealurl" placeholder="Rezept-Link (optional), z.B. https://fooby.ch/…" maxlength="500" inputmode="url">
       <input type="text" id="mealing" placeholder="Zutaten (optional), z.B. Hörnli, Kartoffeln, Käse" maxlength="300">
-      <div class="row"><button class="btn primary" id="addmeal">Gericht hinzufügen</button></div>
+      <div class="row end"><button class="btn primary" id="addmeal">Gericht hinzufügen</button></div>
       <ul class="list" id="meals"></ul>
     </div>
   </section>
