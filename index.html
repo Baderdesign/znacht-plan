@@ -135,6 +135,19 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--basil);flex:none}
 .seg button[aria-pressed="true"].k1{background:var(--plum);color:var(--paper);border-color:var(--plum)}
 .seg button[aria-pressed="true"].kout{background:var(--saffron);color:#1f2a22;border-color:var(--saffron)}
 .seg button[aria-pressed="true"].knone{background:var(--fg);color:var(--paper)}
+.searchhead{display:flex;align-items:center;gap:10px}
+.searchhead .note{flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+input[type=search]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0;-webkit-appearance:none;appearance:none}
+.scrollbox{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#mealbox{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#mealbox.more{box-shadow:inset 0 -14px 12px -12px rgba(0,0,0,.18)}
+.scrollbox.short{max-height:34vh;border:1px solid var(--line);border-radius:12px}
+.picklist{list-style:none;margin:0;padding:0}
+.picklist li+li{border-top:1px solid var(--line)}
+.picklist button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 12px;font-weight:700}
+.picklist button small{display:block;font-weight:400;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.picklist button.sel{background:var(--basil-soft);color:var(--basil)}
+.picklist .empty-state{padding:10px 12px}
 .sugg{display:flex;flex-wrap:wrap;gap:6px}
 .sugg button{border:0;background:var(--basil-soft);color:var(--basil);border-radius:999px;padding:6px 11px;font-size:14px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90%}
@@ -222,7 +235,8 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
       <input type="url" id="mealurl" placeholder="Rezept-Link (optional), z.B. https://fooby.ch/…" maxlength="500" inputmode="url">
       <input type="text" id="mealing" placeholder="Zutaten (optional), z.B. Hörnli, Kartoffeln, Käse" maxlength="300">
       <div class="row end"><button class="btn primary" id="addmeal">Gericht hinzufügen</button></div>
-      <ul class="list" id="meals"></ul>
+      <div class="searchhead"><input type="search" id="mealsearch" placeholder="Suchen: Name oder Zutat" autocomplete="off"><span class="note" id="mealcount"></span></div>
+      <div class="scrollbox" id="mealbox"><ul class="list" id="meals"></ul></div>
     </div>
   </section>
 
@@ -256,8 +270,8 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
     <h3 id="sh-title">Montag</h3>
     <div class="field">
       <label for="sh-meal">Was gibt's?</label>
-      <input type="text" id="sh-meal" maxlength="80" placeholder="Gericht eingeben">
-      <div class="sugg" id="sh-sugg"></div>
+      <input type="text" id="sh-meal" maxlength="80" placeholder="Suchen oder neues Gericht eingeben" autocomplete="off">
+      <div class="scrollbox short"><ul class="picklist" id="sh-sugg"></ul></div>
     </div>
     <div class="field">
       <label for="sh-url">Rezept-Link</label>
@@ -303,6 +317,6 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

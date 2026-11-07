@@ -250,8 +250,12 @@ function renderWeek() {
 }
 function renderMeals() {
   const ul = $("meals"); ul.textContent = "";
+  const q = $("mealsearch").value.trim().toLowerCase();
+  const list = S.meals.filter(m => !q || m.name.toLowerCase().includes(q) || (m.ingredients || "").toLowerCase().includes(q));
+  $("mealcount").textContent = q ? list.length + " von " + S.meals.length : S.meals.length + " Gerichte";
   if (!S.meals.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = "Noch keine Gerichte. Fügt oben euer erstes hinzu."; ul.append(e); return; }
-  [...S.meals].sort((a, b) => a.name.localeCompare(b.name, "de")).forEach(m => {
+  if (!list.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = "Nichts gefunden für «" + $("mealsearch").value.trim() + "»."; ul.append(e); return; }
+  list.sort((a, b) => a.name.localeCompare(b.name, "de")).forEach(m => {
     const li = document.createElement("li");
     const t = document.createElement("div"); t.className = "t";
     const nb = document.createElement("button"); nb.className = "mealbtn"; nb.textContent = m.name; nb.onclick = () => openRecipe(m.id); t.append(nb);
@@ -262,7 +266,17 @@ function renderMeals() {
     const eb = document.createElement("button"); eb.className = "btn sm primary"; eb.textContent = "Ändern"; eb.onclick = () => { rId = m.id; $("rscrim").hidden = false; startEdit(); };
     acts.append(vb, eb); li.append(t, acts); ul.append(li);
   });
+  fitMealBox();
 }
+// Liste zeigt 7 Gerichte, der Rest scrollt in sich.
+function fitMealBox() {
+  const box = $("mealbox"), rows = [...$("meals").children];
+  if (!box.offsetParent) return; // Tab nicht sichtbar: beim Öffnen messen
+  box.style.maxHeight = "";
+  if (rows.length > 7) { const top = rows[0].offsetTop, h = rows[7].offsetTop - top; box.style.maxHeight = (h + 6) + "px"; box.classList.add("more"); }
+  else box.classList.remove("more");
+}
+window.addEventListener("resize", fitMealBox);
 function renderShop() {
   const ul = $("shop"); ul.textContent = ""; const list = weekShop();
   if (!list.length) { const e = document.createElement("li"); e.className = "empty-state"; e.textContent = "Leer. Tippt auf «Zutaten aus dem Plan holen» oder schreibt selbst etwas."; ul.append(e); return; }
@@ -334,15 +348,23 @@ function openSheet(i) {
   editing = i; const p = weekPlan()[i] || {};
   $("sh-title").textContent = DAYS[i] + ", " + fmt(addDays(wk, i));
   $("sh-meal").value = p.meal || ""; $("sh-note").value = p.note || ""; $("sh-url").value = p.url || "";
-  drawSugg(); $("scrim").hidden = false; setTimeout(() => $("sh-meal").focus(), 50);
+  drawSugg(); $("scrim").hidden = false; $("sh-sugg").parentElement.scrollTop = 0; const sel = $("sh-sugg").querySelector(".sel"); if (sel) sel.scrollIntoView({ block: "nearest" });
 }
 function drawSugg() {
-  const q = $("sh-meal").value.trim().toLowerCase(), box = $("sh-sugg"); box.textContent = "";
-  S.meals.filter(m => (!q || m.name.toLowerCase().includes(q)) && m.name.toLowerCase() !== q).slice(0, 8).forEach(m => {
-    const b = document.createElement("button"); b.textContent = m.name;
-    b.onclick = () => { $("sh-meal").value = m.name; if (!$("sh-url").value && m.url) $("sh-url").value = m.url; drawSugg(); };
-    box.append(b);
+  const val = $("sh-meal").value.trim(), q = val.toLowerCase(), box = $("sh-sugg"); box.textContent = "";
+  const exact = S.meals.find(m => m.name.toLowerCase() === q);
+  // Passt der Text genau zu einem Gericht, alle zeigen (zum Wechseln); sonst filtern.
+  const list = S.meals.filter(m => !q || exact || m.name.toLowerCase().includes(q) || (m.ingredients || "").toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+  if (!list.length) { const e = document.createElement("li"); e.className = "empty-state note"; e.textContent = "Kein Gericht gefunden. Mit «Speichern» wird «" + val + "» als neues Gericht angelegt."; box.append(e); return; }
+  list.forEach(m => {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.textContent = m.name; if (exact && exact.id === m.id) b.className = "sel";
+    if (m.ingredients) { const sm = document.createElement("small"); sm.textContent = m.ingredients; b.append(sm); }
+    b.onclick = () => { $("sh-meal").value = m.name; $("sh-url").value = m.url || ""; drawSugg(); };
+    li.append(b); box.append(li);
   });
+  const sel = box.querySelector(".sel"); if (sel) sel.scrollIntoView({ block: "nearest" });
 }
 $("sh-meal").addEventListener("input", drawSugg);
 function closeSheet() { $("scrim").hidden = true; editing = null; }
@@ -440,6 +462,7 @@ $("addmeal").onclick = async () => {
     $("mealname").value = ""; $("mealurl").value = ""; $("mealing").value = ""; toast("«" + name + "» hinzugefügt");
   }
 };
+$("mealsearch").addEventListener("input", renderMeals);
 $("mealname").addEventListener("keydown", e => { if (e.key === "Enter") $("mealurl").focus(); });
 $("mealurl").addEventListener("keydown", e => { if (e.key === "Enter") $("mealing").focus(); });
 $("mealing").addEventListener("keydown", e => { if (e.key === "Enter") $("addmeal").click(); });
@@ -486,7 +509,8 @@ $("leave").onclick = () => {
 };
 
 /* ---------- tabs & weeks ---------- */
-function setTab(t) { ["week", "ideas", "shop"].forEach(k => { $("tab-" + k).setAttribute("aria-selected", String(k === t)); $("v-" + k).hidden = k !== t; }); window.scrollTo(0, 0); }
+function setTab(t) { setTimeout(fitMealBox, 0);
+  ["week", "ideas", "shop"].forEach(k => { $("tab-" + k).setAttribute("aria-selected", String(k === t)); $("v-" + k).hidden = k !== t; }); window.scrollTo(0, 0); }
 ["week", "ideas", "shop"].forEach(k => $("tab-" + k).onclick = () => setTab(k));
 $("prev").onclick = () => { swapFrom = null; wk = addDays(wk, -7); renderAll(); };
 $("next").onclick = () => { swapFrom = null; wk = addDays(wk, 7); renderAll(); };

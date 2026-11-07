@@ -1,7 +1,7 @@
 // Bader Znacht: Mit Internet immer die neueste Version laden (höchstens 3 Sekunden warten).
 // Ohne Internet oder bei schlechtem Empfang: die zuletzt geladene Version vom Gerät.
-const C = "bader-znacht-v6";
-const FILES = ["./", "index.html", "app.js?v=6", "manifest.webmanifest?v=2",
+const C = "bader-znacht-v8";
+const FILES = ["./", "index.html", "app.js?v=8", "manifest.webmanifest?v=2",
   "bader-icon-180.png", "bader-icon-192.png", "bader-icon-512.png"];
 
 self.addEventListener("install", e => {
