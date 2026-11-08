@@ -6,7 +6,8 @@ const VAPID_PUBLIC = "BIjizNMnsQn1so3r04bW1-IB0HEgyZnZa_R6AKm6bwMgVowRgJGIWgIlKO
 
 const DAYS = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
 const SHORT = ["Mo","Di","Mi","Do","Fr","Sa","So"];
-const $ = id => document.getElementById(id);
+// Fehlt ein Element (z.B. kurz nach einem Update alte Seite + neues Programm), nicht abstürzen.
+const $ = id => document.getElementById(id) || Object.assign(document.createElement("div"), { hidden: true });
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 let code = null;

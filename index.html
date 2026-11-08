@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Bader Znacht</title>
+<title>Bader Chuchi</title>
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Bader Znacht">
-<link rel="manifest" href="manifest.webmanifest?v=2">
-<link rel="apple-touch-icon" href="bader-icon-180.png">
-<link rel="icon" href="bader-icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Bader Chuchi">
+<link rel="manifest" href="manifest.webmanifest?v=4">
+<link rel="apple-touch-icon" href="chuchi-icon-180.png">
+<link rel="icon" href="chuchi-icon-192.png">
 <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <style>
 html{-webkit-text-size-adjust:100%}
@@ -67,7 +67,21 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
 /* week list */
 .days{list-style:none;margin:0;padding:0;background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden}
-.day{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0}
+.day{display:block;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit}
+.daymain{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:start;padding:12px 0 12px 14px;min-width:0}
+.slots{display:flex;flex-direction:column;gap:8px;min-width:0}
+.days.two .slot{border-left:3px solid var(--line);padding-left:10px}
+.days.two .slot-m{border-left-color:var(--saffron)}
+.days.two .slot-z{border-left-color:var(--basil)}
+.sl{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1px}
+.slot .links{padding:0!important;margin-top:6px!important}
+.days:not(.two) .daymain{align-items:center}
+.weekbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.switch{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;cursor:pointer;user-select:none}
+.switch input{appearance:none;-webkit-appearance:none;flex:none;min-width:44px;width:44px;height:26px;padding:0;border:0;border-radius:999px;background:var(--line);position:relative;margin:0;cursor:pointer;transition:background .15s}
+.switch input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--paper);box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.switch input:checked{background:var(--basil)}
+.switch input:checked::after{transform:translateX(18px)}
 .days li:first-child .day{border-top:0}
 .day.today{background:var(--saffron-soft)}
 .dname{font-family:var(--f-display);font-weight:700;font-size:20px;line-height:1}
@@ -98,7 +112,7 @@ a{color:var(--basil);font-weight:700}
 .dayrow.pick{background:var(--plum-soft)}
 .dayrow.pick .grip{background:var(--plum);color:var(--paper);border-color:var(--plum)}
 .dayrow.target{background:var(--basil-soft);box-shadow:inset 4px 0 0 var(--basil)}
-.days.swapping .dayrow:not(.pick) .day .meal::after{content:"  ⇄ hierhin";color:var(--plum);font-weight:700;font-size:13px}
+.days.swapping .dayrow:not(.pick) .slot:first-child .meal::after{content:"  ⇄ hierhin";color:var(--plum);font-weight:700;font-size:13px}
 .swapbar{display:flex;align-items:center;gap:10px;background:var(--plum-soft);color:var(--fg);border-radius:12px;padding:8px 8px 8px 12px;font-size:14px}
 .swapbar span{flex:1;min-width:0}
 .days li:first-child .dayrow{border-top:0}
@@ -168,6 +182,11 @@ input[type=search]{font:inherit;color:var(--fg);background:var(--bg);border:1px 
 .chev{display:none}
 .topline{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
 .topline h1{text-align:center;white-space:nowrap}
+.wm{line-height:0;margin:0}
+.wm img{height:72px;width:auto;max-width:100%;display:block;margin:0 auto}
+.setup .wm img{height:96px;margin:0}
+.topline{grid-template-columns:auto 1fr auto}
+.topline .wm{min-width:0}
 .topline .sync{justify-self:end}
 .logo{width:68px;height:68px;border-radius:16px;display:block;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .logo.big{width:96px;height:96px;border-radius:22px}
@@ -190,8 +209,8 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
 <body>
 <div class="wrap">
   <div class="setup" id="setup" hidden>
-    <img class="logo big" src="bader-icon-180.png" alt="Bader Znacht" width="96" height="96">
-    <h1><span>Znacht</span>-Plan</h1>
+    <img class="logo big" src="chuchi-icon-180.png" alt="Bader Chuchi" width="96" height="96">
+    <h1 class="wm"><img src="bader-chuchi-schrift.png" alt="Bader Chuchi" width="183" height="72"></h1>
     <p>Plant zusammen, was es diese Woche zum Znacht gibt. Einer startet den Plan, der andere tritt mit dem Link bei.</p>
     <div class="card">
       <h2>Neuer Plan</h2>
@@ -206,8 +225,8 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   <div id="app" hidden style="display:contents">
   <header>
     <div class="topline">
-      <img class="logo" src="bader-icon-180.png" alt="Bader Znacht" width="68" height="68">
-      <h1><span>Znacht</span>-Plan</h1>
+      <img class="logo" src="chuchi-icon-180.png" alt="Bader Chuchi" width="68" height="68">
+      <h1 class="wm"><img src="bader-chuchi-schrift.png" alt="Bader Chuchi" width="183" height="72"></h1>
       <div class="sync"><span id="sync"></span><button class="ib" id="refresh" aria-label="Aktualisieren">↻</button></div>
     </div>
     <div class="weeknav">
@@ -224,7 +243,7 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   <div id="status" class="banner" hidden></div>
 
   <section id="v-week">
-    <div class="fair" id="fair"></div>
+    <div class="weekbar"><div class="fair" id="fair"></div><label class="switch"><input type="checkbox" id="lunch"><span>Zmittag</span></label></div>
     <div class="swapbar" id="swapbar" hidden><span id="swaptext"></span><button class="btn sm" id="swapcancel">Abbrechen</button></div>
     <ul class="days" id="days"></ul>
     <p class="note" style="margin:0">Tage tauschen: Tippe auf ⇅ beim einen Tag, dann auf den anderen. Oder halte ⇅ gedrückt und zieh den Tag an die neue Stelle.</p>
@@ -343,6 +362,30 @@ section:not([hidden]){display:flex;flex-direction:column;gap:14px}
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
-<script src="app.js?v=14"></script>
+<div id="rescue" hidden style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:var(--bg);z-index:50">
+  <div class="card" style="max-width:360px">
+    <h2>Die App konnte nicht starten</h2>
+    <p class="note" style="margin:0">Meist liegt das an einem halb geladenen Update. Euer Plan ist sicher gespeichert.</p>
+    <div class="row"><button class="btn primary" id="rescuebtn">App reparieren</button></div>
+  </div>
+</div>
+<script>
+// Notfall: Startet die App nicht, kann man sie hier reparieren (alte gespeicherte Dateien löschen, Plan bleibt).
+(function () {
+  var r = document.getElementById("rescue");
+  function stuck() { return document.getElementById("app").hidden && document.getElementById("setup").hidden; }
+  setTimeout(function () { if (stuck()) r.hidden = false; }, 4000);
+  window.addEventListener("error", function () { setTimeout(function () { if (stuck()) r.hidden = false; }, 300); });
+  document.getElementById("rescuebtn").onclick = function () {
+    var jobs = [];
+    try {
+      if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (x) { return x.unregister(); })); }));
+      if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+    } catch (e) {}
+    Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+  };
+})();
+</script>
+<script src="app.js?v=16"></script>
 </body>
 </html>
