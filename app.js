@@ -52,7 +52,7 @@ function isoWeek(d) { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(),
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function fmt(d) { return d.getDate() + "." + (d.getMonth() + 1) + "."; }
 const today = new Date();
-let wk = monday(today); if (today.getDay() === 0) wk.setDate(wk.getDate() + 7); // Sonntags: nächste Woche planen
+let wk = monday(today); // immer die laufende Woche (Mo–So); die nächste Woche mit dem Pfeil ›
 const W = () => key(wk);
 
 function cleanUrl(u) { u = (u || "").trim(); if (!u) return ""; if (!/^https?:\/\//i.test(u)) u = "https://" + u; try { const x = new URL(u); return x.protocol.startsWith("http") ? x.href : ""; } catch (e) { return ""; } }
