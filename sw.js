@@ -1,8 +1,8 @@
 // Bader Znacht: Die App startet immer sofort vom Gerät, auch mit schlechtem Empfang.
 // Im Hintergrund wird die neueste Version geholt. Gibt es eine neue, lädt die App kurz neu.
-const C = "bader-znacht-v14";
-const FILES = ["./", "index.html", "app.js?v=14", "manifest.webmanifest?v=2",
-  "bader-icon-180.png", "bader-icon-192.png", "bader-icon-512.png"];
+const C = "bader-znacht-v18";
+const FILES = ["./", "index.html", "app.js?v=15", "manifest.webmanifest?v=4",
+  "chuchi-icon-180.png", "chuchi-icon-192.png", "chuchi-icon-512.png", "bader-chuchi-schrift.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(C).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting()));

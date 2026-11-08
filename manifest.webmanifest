@@ -1,13 +1,13 @@
 {
-  "name": "Bader Znacht",
-  "short_name": "Bader Znacht",
+  "name": "Bader Chuchi",
+  "short_name": "Bader Chuchi",
   "lang": "de-CH",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "icons": [
-    { "src": "bader-icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "bader-icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "bader-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "chuchi-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "chuchi-icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "chuchi-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
