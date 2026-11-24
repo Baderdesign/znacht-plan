@@ -1,0 +1,25 @@
+# Bader Chuchi: Fragt alle 3 Tage kurz bei Supabase an,
+# damit das Gratis-Projekt nicht wegen Nichtbenutzung pausiert wird.
+name: Supabase wach halten
+
+on:
+  schedule:
+    - cron: "17 6 */3 * *"   # alle 3 Tage um 06:17 UTC
+  workflow_dispatch:         # auch von Hand startbar (Actions → Run workflow)
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase anfragen
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://qpmnraeacexzjnnlvqhw.supabase.co/rest/v1/rpc/znacht_load" \
+            -H "apikey: sb_publishable_BvKAH1kJTAZJSiwyIXAeJQ_YJ6_KATy" \
+            -H "Content-Type: application/json" \
+            -d '{"p_code":"WACH-HALT-EN00-0000-0000"}')
+          echo "Antwort von Supabase: $code"
+          if [ "$code" != "200" ]; then
+            echo "Supabase hat nicht normal geantwortet. Ist das Projekt pausiert?"
+            exit 1
+          fi
